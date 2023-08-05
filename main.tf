@@ -119,35 +119,50 @@ resource "aws_security_group" "ELB_SG" {
   }
 }
 
-resource "aws_elb" "web_elb" {
-  name = "web-elb"
-  security_groups = [
-    "${aws_security_group.ELB_SG.id}"
-  ]
+# Create an ALB
+resource "aws_lb" "web_alb" {
+  name               = "web-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.ELB_SG.id]
   subnets = [
-    "${aws_subnet.Terraform_public_subnet01.id}",
-    "${aws_subnet.Terraform_public_subnet02.id}"
-  ]
+     "${aws_subnet.Terraform_public_subnet01.id}",
+     "${aws_subnet.Terraform_public_subnet02.id}"
+   ]
+}
 
-  cross_zone_load_balancing = true
+# Create a target group
+resource "aws_lb_target_group" "web_target_group" {
+  name        = "web-target-group"
+  port        = 80
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.Terra-vpc.id
+  target_type = "instance"
 
   health_check {
     healthy_threshold   = 2
     unhealthy_threshold = 2
     timeout             = 3
     interval            = 30
-    target              = "HTTP:80/"
+    #target              = "HTTP:80/"
   }
 
-  listener {
-    lb_port           = 80
-    lb_protocol       = "http"
-    instance_port     = "80"
-    instance_protocol = "http"
-  }
-
+  # Attach the EC2 instances to the target group
+  #targets = aws_instance.web_server.*.id
 }
 
+# Create a listener to forward requests to the target group
+resource "aws_lb_listener" "web_listener" {
+  load_balancer_arn = aws_lb.web_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web_target_group.arn
+  }
+}
+  
 # Creating Launch Template
 resource "aws_launch_configuration" "web" {
   name_prefix = "web-"
@@ -175,7 +190,7 @@ resource "aws_autoscaling_group" "web" {
 
   health_check_type = "ELB"
   load_balancers = [
-    "${aws_elb.web_elb.id}"
+    "${aws_lb.web_alb.id}"
   ]
 
   launch_configuration = aws_launch_configuration.web.name
