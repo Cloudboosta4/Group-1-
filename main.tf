@@ -192,10 +192,7 @@ resource "aws_autoscaling_group" "autoscaling" {
   target_group_arns = [aws_lb_target_group.web_target_group.arn]
 
   health_check_type = "ELB"
-  #load_balancers = [
-    #"${aws_lb.web_alb.id}"
-  #]
-
+  
   #launch_configuration = aws_launch_configuration.web.name
 
   enabled_metrics = [
