@@ -119,11 +119,12 @@ resource "aws_security_group" "ELB_SG" {
   }
 }
 
+
 # Create an ALB
 resource "aws_lb" "web_alb" {
   name               = "web-alb"
   internal           = false
-  load_balancer_type = "application"
+  #load_balancer_type = "application"
   security_groups    = [aws_security_group.ELB_SG.id]
   subnets = [
      "${aws_subnet.Terraform_public_subnet01.id}",
@@ -140,15 +141,15 @@ resource "aws_lb_target_group" "web_target_group" {
   target_type = "instance"
 
   health_check {
+    enabled              = true
     healthy_threshold   = 2
     unhealthy_threshold = 2
     timeout             = 3
     interval            = 30
+    path                = "/health.html" 
     #target              = "HTTP:80/"
   }
 
-  # Attach the EC2 instances to the target group
-  #targets = aws_instance.web_server.*.id
 }
 
 # Create a listener to forward requests to the target group
@@ -162,7 +163,7 @@ resource "aws_lb_listener" "web_listener" {
     target_group_arn = aws_lb_target_group.web_target_group.arn
   }
 }
-  
+
 # Creating Launch Template
 resource "aws_launch_configuration" "web" {
   name_prefix = "web-"
@@ -181,19 +182,21 @@ resource "aws_launch_configuration" "web" {
 }
 
 #Creating Auto Scaling Group
-resource "aws_autoscaling_group" "web" {
-  name = "${aws_launch_configuration.web.name}-asg"
-
+resource "aws_autoscaling_group" "autoscaling" {
+  name = "autoscaling-asg"
+  launch_configuration = aws_launch_configuration.web.id
   min_size         = 4
   desired_capacity = 4
   max_size         = 4
 
-  health_check_type = "ELB"
-  load_balancers = [
-    "${aws_lb.web_alb.id}"
-  ]
+  target_group_arns = [aws_lb_target_group.web_target_group.arn]
 
-  launch_configuration = aws_launch_configuration.web.name
+  health_check_type = "ELB"
+  #load_balancers = [
+    #"${aws_lb.web_alb.id}"
+  #]
+
+  #launch_configuration = aws_launch_configuration.web.name
 
   enabled_metrics = [
     "GroupMinSize",
@@ -217,7 +220,7 @@ resource "aws_autoscaling_group" "web" {
 
   tag {
     key                 = "Name"
-    value               = "web"
+    value               = "webASG"
     propagate_at_launch = true
   }
 
@@ -229,7 +232,7 @@ resource "aws_autoscaling_policy" "web_policy_up" {
   scaling_adjustment     = 1
   adjustment_type        = "ChangeInCapacity"
   cooldown               = 300
-  autoscaling_group_name = aws_autoscaling_group.web.name
+  autoscaling_group_name = aws_autoscaling_group.autoscaling.id
 }
 
 # Creating the Cloudwatch metric alarm for scaling-up
@@ -243,9 +246,9 @@ resource "aws_cloudwatch_metric_alarm" "web_cpu_alarm_up" {
   statistic           = "Average"
   threshold           = "70"
 
-  dimensions = {
-    AutoScalingGroupName = "${aws_autoscaling_group.web.name}"
-  }
+  #dimensions = {
+    #AutoScalingGroupName = "autoscaling"
+  #}
 
   alarm_description = "This metric monitor EC2 instance CPU utilization"
   alarm_actions     = ["${aws_autoscaling_policy.web_policy_up.arn}"]
@@ -257,7 +260,7 @@ resource "aws_autoscaling_policy" "web_policy_down" {
   scaling_adjustment     = -1
   adjustment_type        = "ChangeInCapacity"
   cooldown               = 300
-  autoscaling_group_name = aws_autoscaling_group.web.name
+  autoscaling_group_name = aws_autoscaling_group.autoscaling.id
 }
 
 #Creating the Cloudwatch metric alarm for scaling down
@@ -271,9 +274,9 @@ resource "aws_cloudwatch_metric_alarm" "web_cpu_alarm_down" {
   statistic           = "Average"
   threshold           = "30"
 
-  dimensions = {
-    AutoScalingGroupName = "${aws_autoscaling_group.web.name}"
-  }
+  #dimensions = {
+    #AutoScalingGroupName = "${aws_autoscaling_group.web.name}"
+  #}
 
   alarm_description = "This metric monitor EC2 instance CPU utilization"
   alarm_actions     = ["${aws_autoscaling_policy.web_policy_down.arn}"]
