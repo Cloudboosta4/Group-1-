@@ -182,16 +182,13 @@ resource "aws_launch_configuration" "web" {
 #Creating Auto Scaling Group
 resource "aws_autoscaling_group" "autoscaling" {
   name = "autoscaling-asg"
-  launch_configuration = aws_launch_configuration.web.id
-  min_size         = 4
   desired_capacity = 4
-  max_size         = 4
-
-  target_group_arns = [aws_lb_target_group.web_target_group.arn]
-
+  max_size         = 8
+  min_size         = 2
   health_check_type = "ELB"
-  
-  #launch_configuration = aws_launch_configuration.web.name
+  health_check_grace_period = 300
+  launch_configuration = aws_launch_configuration.web.id
+  target_group_arns = [aws_lb_target_group.web_target_group.arn]
 
   enabled_metrics = [
     "GroupMinSize",
